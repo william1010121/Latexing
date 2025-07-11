@@ -6,14 +6,31 @@ class FloatingLatexEditor {
         this.overlay = null;
         this.editor = null;
         this.snippetHandler = null;
+        this.mathJaxReady = false;
         this.setupKeyboardListener();
         this.initializeSnippetHandler();
+        this.initializeMathJax();
         console.log('FloatingLatexEditor initialized');
     }
 
     initializeSnippetHandler() {
         if (typeof LaTeXSnippetHandler !== 'undefined') {
             this.snippetHandler = new LaTeXSnippetHandler();
+        }
+    }
+
+    initializeMathJax() {
+        if (typeof MathJax !== 'undefined') {
+            console.log('MathJax is available');
+            // Wait for MathJax to be ready
+            MathJax.startup.promise.then(() => {
+                console.log('MathJax is ready');
+                this.mathJaxReady = true;
+            }).catch((error) => {
+                console.error('MathJax initialization error:', error);
+            });
+        } else {
+            console.warn('MathJax is not available in content script context');
         }
     }
 
@@ -163,6 +180,8 @@ class FloatingLatexEditor {
                 font-size: 14px;
                 resize: vertical;
                 box-sizing: border-box;
+                background: white;
+                color: #333;
             }
 
             #latex-type {
@@ -173,6 +192,8 @@ class FloatingLatexEditor {
                 border-radius: 4px;
                 font-size: 14px;
                 box-sizing: border-box;
+                background: white;
+                color: #333;
             }
 
             #latex-preview {
@@ -183,6 +204,29 @@ class FloatingLatexEditor {
                 margin: 10px 0;
                 background: #f9f9f9;
                 text-align: center;
+                color: #000;
+            }
+
+            #latex-preview svg {
+                max-width: 100%;
+                height: auto;
+                color: #000 !important;
+            }
+
+            #latex-preview mjx-container {
+                display: inline-block !important;
+                margin: 0 !important;
+                color: #000 !important;
+            }
+
+            #latex-preview .MathJax {
+                color: #000 !important;
+                background: transparent !important;
+            }
+
+            #latex-preview g {
+                stroke: #000 !important;
+                fill: #000 !important;
             }
 
             .latex-editor-buttons {
@@ -327,12 +371,32 @@ class FloatingLatexEditor {
         const type = this.overlay.querySelector('#latex-type').value;
         const preview = this.overlay.querySelector('#latex-preview');
         
-        preview.innerHTML = (type === "inline" ? `\\(${input}\\)` : `\\[${input}\\]`);
+        // Clear previous content
+        preview.innerHTML = '';
+        
+        if (input.trim() === '') {
+            preview.innerHTML = '<em style="color: #666;">Preview will appear here...</em>';
+            this.saveData(input, type);
+            return;
+        }
+        
+        const latexContent = (type === "inline" ? `\\(${input}\\)` : `\\[${input}\\]`);
+        preview.innerHTML = latexContent;
         
         if (typeof MathJax !== 'undefined') {
+            console.log('Processing with MathJax:', latexContent);
             MathJax.typesetPromise([preview]).then(() => {
+                console.log('MathJax typeset successful');
                 this.renderLatexToCanvas(input, type);
+            }).catch((error) => {
+                console.error('MathJax typeset error:', error);
+                // Show raw LaTeX on error
+                preview.innerHTML = `<code style="color: red;">${latexContent}</code>`;
             });
+        } else {
+            console.warn('MathJax not available in content script context');
+            // Fallback: just show the raw LaTeX
+            preview.innerHTML = `<code>${latexContent}</code>`;
         }
         
         this.saveData(input, type);
@@ -358,9 +422,9 @@ class FloatingLatexEditor {
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 context.fillStyle = 'white';
                 context.fillRect(0, 0, canvas.width, canvas.height);
-                context.drawImage(img, margin, margin, img.width, img.height);
+                context.drawImage(img, margin, margin, img.width * k, img.height * k);
             };
-            img.src = 'data:image/svg+xml;base64,' + btoa(data);
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(data)));
         }
     }
 
@@ -394,26 +458,42 @@ class FloatingLatexEditor {
 
     saveData(input, latexType) {
         if (typeof chrome !== 'undefined' && chrome.storage) {
-            chrome.storage.sync.set({
-                floatingInput: input, 
-                floatingLatexType: latexType
-            }, () => {
-                console.log("Floating editor data saved");
-            });
+            try {
+                chrome.storage.sync.set({
+                    floatingInput: input, 
+                    floatingLatexType: latexType
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.log("Storage save failed:", chrome.runtime.lastError.message);
+                    } else {
+                        console.log("Floating editor data saved");
+                    }
+                });
+            } catch (error) {
+                console.log("Extension context invalidated, cannot save data:", error.message);
+            }
         }
     }
 
     loadData() {
         if (typeof chrome !== 'undefined' && chrome.storage) {
-            chrome.storage.sync.get(['floatingInput', 'floatingLatexType'], (data) => {
-                if (data.floatingInput) {
-                    this.overlay.querySelector('#latex-input').value = data.floatingInput;
-                }
-                if (data.floatingLatexType) {
-                    this.overlay.querySelector('#latex-type').value = data.floatingLatexType;
-                }
-                this.updatePreview();
-            });
+            try {
+                chrome.storage.sync.get(['floatingInput', 'floatingLatexType'], (data) => {
+                    if (chrome.runtime.lastError) {
+                        console.log("Storage load failed:", chrome.runtime.lastError.message);
+                        return;
+                    }
+                    if (data.floatingInput) {
+                        this.overlay.querySelector('#latex-input').value = data.floatingInput;
+                    }
+                    if (data.floatingLatexType) {
+                        this.overlay.querySelector('#latex-type').value = data.floatingLatexType;
+                    }
+                    this.updatePreview();
+                });
+            } catch (error) {
+                console.log("Extension context invalidated, cannot load data:", error.message);
+            }
         }
     }
 }
