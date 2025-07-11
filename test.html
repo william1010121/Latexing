@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple LaTeX Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            width: 400px;
+            height: 500px;
+            background-color: white; /* Set background to white */
+        }
+        #inputBox, #outputBox {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        #inputBox {
+            font-family: monospace;
+        }
+        #copyButton {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #latexType {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg-full.min.js" integrity="sha512-rt6EnxNkuTTgQX2397gLDTao/kZrmdNM4ZO7n89nX6KqOauwSQTGOq3shcd/oGyUc0czxMKBvj+gML8dxX4hAg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <h1>Simple LaTeX Editor</h1>
+    <textarea id="inputBox" placeholder="Enter your LaTeX here..."></textarea>
+    <select id="latexType">
+        <option value="inline">Inline \\( \\)</option>
+        <option value="display">Display \\[ \\]</option>
+    </select>
+    <div id="outputBox"></div>
+    <button id="copyButton">Copy as Image</button>
+    <canvas id="latexCanvas"></canvas>
+
+    <script>
+        document.getElementById('inputBox').addEventListener('input', updateOutput);
+        document.getElementById('latexType').addEventListener('change', updateOutput);
+
+        function updateOutput() {
+            var input = document.getElementById('inputBox').value;
+            var latexType = document.getElementById('latexType').value;
+            document.getElementById('outputBox').innerHTML = (latexType == "inline" ? `\\(${input}\\)` : `\\[${input}\\]`);
+            MathJax.typesetPromise([document.getElementById('outputBox')]).then(() => {
+                renderLatexToCanvas(input, latexType);
+            });
+        }
+
+        document.getElementById('copyButton').addEventListener('click', function() {
+            var canvas = document.getElementById('latexCanvas');
+            canvas.toBlob(function(blob) {
+                var item = new ClipboardItem({'image/png': blob});
+                navigator.clipboard.write([item]).then(function() {
+                    alert('Image copied to clipboard');
+                }).catch(function(error) {
+                    console.error('Error copying image: ', error);
+                });
+            });
+        });
+
+        function renderLatexToCanvas(latex, latexType) {
+            var canvas = document.getElementById('latexCanvas');
+            var context = canvas.getContext('2d');
+            var outputBox = document.getElementById('outputBox');
+
+            var svgElement = outputBox.querySelector('svg');
+            if (svgElement) {
+                var data = new XMLSerializer().serializeToString(svgElement);
+                var img = new Image();
+                img.onload = function() {
+                    var k = Math.max(1, Math.ceil(150 / img.width));
+                    var width = img.width * k;
+                    var height = img.height * k;
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    // Fill canvas with white background
+                    context.fillStyle = 'white';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+
+                    context.drawImage(img, 0, 0, width, height);
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(data);
+            }
+        }
+
+        // Initial call to render the default state
+        updateOutput();
+    </script>
+</body>
+</html>

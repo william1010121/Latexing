@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple LaTeX Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            width: 400px;
+            height: 500px;
+            background-color: white; /* Set background to white */
+        }
+        #inputBox, #outputBox {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        #inputBox {
+            font-family: monospace;
+        }
+        #copyButton {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #latexType {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+    <script src="./tex-svg-full.js"></script>
+</head>
+<body>
+    <h1>Simple LaTeX Editor</h1>
+    <textarea id="inputBox" placeholder="Enter your LaTeX here..."></textarea>
+    <select id="latexType">
+        <option value="inline">Inline \\( \\)</option>
+        <option value="display">Display \\[ \\]</option>
+    </select>
+    <div id="outputBox"></div>
+    <button id="copyButton">Copy as Image</button>
+    <canvas id="latexCanvas"></canvas>
+    <script src="./popup.js"></script>
+</body>
+</html>
