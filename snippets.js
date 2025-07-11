@@ -68,7 +68,10 @@ class LaTeXSnippetHandler {
         // Move to next placeholder
         this.currentPlaceholder++;
         
-        if (this.currentPlaceholder >= this.placeholders.length) {
+        // Check if we've reached the end or $0
+        const numberedPlaceholders = this.placeholders.filter(p => p.number !== 0);
+        
+        if (this.currentPlaceholder >= numberedPlaceholders.length) {
             // Move to $0 or end snippet
             const zeroPlaceholder = this.placeholders.find(p => p.number === 0);
             if (zeroPlaceholder) {
@@ -84,12 +87,12 @@ class LaTeXSnippetHandler {
             }
         }
 
-        const placeholder = this.placeholders[this.currentPlaceholder];
+        const placeholder = numberedPlaceholders[this.currentPlaceholder];
         return {
             text,
             cursorPosition: placeholder.start,
             changed: false,
-            selectRange: [placeholder.start, placeholder.end]
+            selectRange: [placeholder.start, placeholder.start] // Select at current position
         };
     }
 
@@ -118,32 +121,35 @@ class LaTeXSnippetHandler {
             return { text, cursorPosition: insertPosition, hasPlaceholders: false };
         }
 
-        // Sort placeholders by number
-        placeholders.sort((a, b) => a.number - b.number);
+        // Sort placeholders by position (reverse order for replacement)
+        const sortedForReplacement = [...placeholders].sort((a, b) => b.start - a.start);
         
-        // Replace placeholders with empty strings or default content
+        // Replace placeholders with empty strings, working backwards
         let processedText = text;
-        let offset = 0;
         
-        for (let i = placeholders.length - 1; i >= 0; i--) {
-            const placeholder = placeholders[i];
-            const replacement = placeholder.number === 0 ? '' : '';
+        for (const placeholder of sortedForReplacement) {
+            const replacement = '';
             processedText = processedText.substring(0, placeholder.start) + 
                           replacement + 
                           processedText.substring(placeholder.end);
-            
-            // Update placeholder positions
-            placeholder.start = placeholder.start;
-            placeholder.end = placeholder.start + replacement.length;
         }
         
-        // Update positions after text replacement
-        for (let i = 0; i < placeholders.length; i++) {
-            const placeholder = placeholders[i];
-            const precedingPlaceholders = placeholders.slice(0, i);
-            const offset = precedingPlaceholders.reduce((acc, p) => acc + (p.text.length - 0), 0);
-            placeholder.start -= offset;
-            placeholder.end = placeholder.start;
+        // Recalculate placeholder positions after removal
+        const finalPlaceholders = [];
+        let offset = 0;
+        
+        // Sort placeholders by original position for offset calculation
+        const sortedByPosition = [...placeholders].sort((a, b) => a.start - b.start);
+        
+        for (const placeholder of sortedByPosition) {
+            const newStart = placeholder.start - offset;
+            finalPlaceholders.push({
+                number: placeholder.number,
+                start: newStart,
+                end: newStart,
+                text: placeholder.text
+            });
+            offset += placeholder.text.length; // Account for removed placeholder text
         }
         
         // Set up active snippet
@@ -151,24 +157,30 @@ class LaTeXSnippetHandler {
             text: processedText,
             startPosition: insertPosition
         };
-        this.placeholders = placeholders.filter(p => p.number !== 0);
-        this.currentPlaceholder = -1;
         
-        // Find $0 placeholder for final position
-        const zeroPlaceholder = placeholders.find(p => p.number === 0);
+        // Separate $0 from other placeholders
+        const zeroPlaceholder = finalPlaceholders.find(p => p.number === 0);
+        const numberedPlaceholders = finalPlaceholders.filter(p => p.number !== 0);
+        
+        // Sort numbered placeholders by number
+        numberedPlaceholders.sort((a, b) => a.number - b.number);
+        
+        this.placeholders = numberedPlaceholders;
         if (zeroPlaceholder) {
             this.placeholders.push(zeroPlaceholder);
         }
         
+        this.currentPlaceholder = -1;
+        
         // Position cursor at first placeholder
-        const firstPlaceholder = this.placeholders.find(p => p.number === 1);
+        const firstPlaceholder = numberedPlaceholders[0];
         const cursorPosition = firstPlaceholder ? firstPlaceholder.start : insertPosition;
         
         return {
             text: processedText,
             cursorPosition,
             hasPlaceholders: true,
-            selectRange: firstPlaceholder ? [firstPlaceholder.start, firstPlaceholder.end] : null
+            selectRange: firstPlaceholder ? [firstPlaceholder.start, firstPlaceholder.start] : null
         };
     }
 
