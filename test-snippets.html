@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX Snippets Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 800px;
+        }
+        .test-area {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #testInput {
+            width: 100%;
+            height: 100px;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .snippet-examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .snippet-example {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .snippet-category {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>LaTeX Snippets Test</h1>
+    
+    <div class="test-area">
+        <h2>Test Input Area</h2>
+        <p>Type in the text area below to test snippet expansion:</p>
+        <textarea id="testInput" placeholder="Try typing: ;a, ->, //, aa, etc..."></textarea>
+        <p><strong>Instructions:</strong> Type a snippet trigger and it should automatically expand. Try the examples below.</p>
+    </div>
+
+    <div class="snippet-examples">
+        <h2>Available Snippets</h2>
+        
+        <div class="snippet-category">Basic Math</div>
+        <div class="snippet-example">-> becomes →</div>
+        <div class="snippet-example">!= becomes ≠</div>
+        <div class="snippet-example">** becomes ⋅</div>
+        <div class="snippet-example">+- becomes ±</div>
+        <div class="snippet-example">== becomes &=</div>
+        <div class="snippet-example">inn becomes ∈</div>
+        <div class="snippet-example">sr becomes ²</div>
+        <div class="snippet-example">cb becomes ³</div>
+
+        <div class="snippet-category">Greek Letters</div>
+        <div class="snippet-example">;a becomes α</div>
+        <div class="snippet-example">;b becomes β</div>
+        <div class="snippet-example">;g becomes γ</div>
+        <div class="snippet-example">;d becomes δ</div>
+        <div class="snippet-example">;p becomes π</div>
+        <div class="snippet-example">;s becomes σ</div>
+        <div class="snippet-example">;t becomes τ</div>
+        <div class="snippet-example">;o becomes ω</div>
+
+        <div class="snippet-category">Functions</div>
+        <div class="snippet-example">sin becomes \\sin</div>
+        <div class="snippet-example">cos becomes \\cos</div>
+        <div class="snippet-example">log becomes \\log</div>
+        <div class="snippet-example">exp becomes \\exp</div>
+
+        <div class="snippet-category">Fractions</div>
+        <div class="snippet-example">// becomes \\frac{}{}</div>
+        <div class="snippet-example">ab/ becomes \\frac{ab}{}</div>
+
+        <div class="snippet-category">Subscripts (after letters)</div>
+        <div class="snippet-example">a + ii becomes a_i</div>
+        <div class="snippet-example">x + jj becomes x_j</div>
+        <div class="snippet-example">n + 1 becomes n_1</div>
+
+        <div class="snippet-category">Custom</div>
+        <div class="snippet-example">On becomes O(n)</div>
+        <div class="snippet-example">O1 becomes O(1)</div>
+        <div class="snippet-example">qq becomes \\sqrt{}</div>
+    </div>
+
+    <script src="./snippets.js"></script>
+    <script>
+        // Initialize snippet handler
+        const snippetHandler = new LaTeXSnippetHandler();
+        
+        // Add event listeners
+        const testInput = document.getElementById('testInput');
+        
+        testInput.addEventListener('keyup', function(event) {
+            const text = testInput.value;
+            const cursorPosition = testInput.selectionStart;
+            
+            // Process snippets
+            const result = snippetHandler.processText(text, cursorPosition);
+            
+            if (result.changed) {
+                testInput.value = result.text;
+                testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+            }
+        });
+        
+        // Focus on input
+        testInput.focus();
+    </script>
+</body>
+</html>

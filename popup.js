@@ -1,4 +1,11 @@
 
+// Initialize snippet handler
+let snippetHandler = null;
+
+function initializeSnippetHandler() {
+    snippetHandler = new LaTeXSnippetHandler();
+}
+
 function saveData(input, latexType) {
     chrome.storage.sync.set({input: input, latexType: latexType}, function() {
         console.log("Save");
@@ -21,8 +28,30 @@ function loadData() {
 // focus on input box
 document.getElementById('inputBox').focus();
 
-document.getElementById('inputBox').addEventListener('input', updateOutput);
+document.getElementById('inputBox').addEventListener('input', handleInputChange);
+document.getElementById('inputBox').addEventListener('keyup', handleKeyUp);
 document.getElementById('latexType').addEventListener('change', updateOutput);
+
+function handleInputChange() {
+    updateOutput();
+}
+
+function handleKeyUp(event) {
+    if (!snippetHandler) return;
+    
+    const inputBox = document.getElementById('inputBox');
+    const text = inputBox.value;
+    const cursorPosition = inputBox.selectionStart;
+    
+    // Process snippets
+    const result = snippetHandler.processText(text, cursorPosition);
+    
+    if (result.changed) {
+        inputBox.value = result.text;
+        inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
+        updateOutput();
+    }
+}
 
 function updateOutput() {
     var input = document.getElementById('inputBox').value; var latexType = document.getElementById('latexType').value;
@@ -84,4 +113,6 @@ function renderLatexToCanvas(latex) {
     }
 }
 
+// Initialize everything
+initializeSnippetHandler();
 loadData();
