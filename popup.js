@@ -43,6 +43,21 @@ document.getElementById('copyButton').addEventListener('click', function() {
     });
 });
 
+document.getElementById('copyUnicodeButton').addEventListener('click', function() {
+    var input = document.getElementById('inputBox').value;
+    if (input.trim() === '') {
+        return;
+    }
+    
+    var unicodeText = latexConverter.convertToUnicode(input);
+    
+    navigator.clipboard.writeText(unicodeText).then(function() {
+        console.log('Unicode text copied to clipboard');
+    }).catch(function(error) {
+        console.error('Error copying Unicode text: ', error);
+    });
+});
+
 function renderLatexToCanvas(latex) {
     var canvas = document.getElementById('latexCanvas');
     var context = canvas.getContext('2d');
