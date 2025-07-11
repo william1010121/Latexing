@@ -7,6 +7,7 @@ class FloatingLatexEditor {
         this.editor = null;
         this.snippetHandler = null;
         this.mathJaxReady = false;
+        this.previousText = '';
         this.setupKeyboardListener();
         this.initializeSnippetHandler();
         this.initializeMathJax();
@@ -322,12 +323,10 @@ class FloatingLatexEditor {
             }
         }
         
-        // Clear active snippet on other keys (except arrow keys)
+        // Only clear on specific navigation keys that indicate the user is done with the snippet
         if (this.snippetHandler.hasActiveSnippet() && 
-            !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
-            if (event.key !== 'Tab') {
-                this.snippetHandler.clearActiveSnippet();
-            }
+            ['Escape', 'Enter'].includes(event.key)) {
+            this.snippetHandler.clearActiveSnippet();
         }
     }
 
@@ -341,6 +340,12 @@ class FloatingLatexEditor {
         // Skip processing if Tab key (handled in keydown)
         if (event.key === 'Tab') {
             return;
+        }
+        
+        // Handle text change (for placeholder position updates)
+        if (this.previousText !== text) {
+            this.snippetHandler.handleTextChange(this.previousText, text, cursorPosition);
+            this.previousText = text;
         }
         
         // Process snippets
@@ -370,6 +375,7 @@ class FloatingLatexEditor {
         const input = this.overlay.querySelector('#latex-input').value;
         const type = this.overlay.querySelector('#latex-type').value;
         const preview = this.overlay.querySelector('#latex-preview');
+        this.previousText = input;
         
         // Clear previous content
         preview.innerHTML = '';

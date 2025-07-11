@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Nested Placeholders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-input {
+            width: 100%;
+            height: 100px;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .instructions {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .placeholder-info {
+            background-color: #e8f4f8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Nested Placeholders</h1>
+    
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Type "//" to expand to \frac{$1}{$2} $0</li>
+            <li>Use Tab to navigate between placeholders - they will be selected for typing</li>
+            <li>Type content to replace the selected placeholder</li>
+            <li>Tab navigation continues to work even after typing content</li>
+            <li>While at a placeholder, type "//" again to create nested structures</li>
+            <li>Press Escape or Enter to exit snippet mode</li>
+        </ul>
+    </div>
+    
+    <div class="placeholder-info">
+        <h3>Test Examples:</h3>
+        <ul>
+            <li><code>//</code> → \frac{$1}{$2} $0</li>
+            <li>Tab → selects $1, type "a" → \frac{a}{$2} $0</li>
+            <li>Tab → selects $2, type "b" → \frac{a}{b} $0</li>
+            <li>Tab → selects $0, type anything → final result</li>
+            <li>For nesting: Tab to $1, then type // → \frac{\frac{$11}{$12}$10}{$2} $0</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test Area</h3>
+        <textarea class="test-input" id="testInput" placeholder="Type a snippet here and test tab navigation..."></textarea>
+        <div id="debug"></div>
+    </div>
+    
+    <script src="snippets.js"></script>
+    <script>
+        let snippetHandler = null;
+        let previousText = '';
+        
+        // Embed snippets data directly to avoid CORS issues
+        const snippetsData = {
+            "basic_snippets": {
+                "description": "Basic snippets. Expand only inside maths.",
+                "snippets": {
+                    "!=": "\\neq",
+                    "!>": "\\mapsto",
+                    "**": "\\cdot",
+                    "+-": "\\pm",
+                    "-+": "\\mp",
+                    "->": "\\to",
+                    "...": "\\dots",
+                    "<<": "\\ll",
+                    "<=": "\\leq",
+                    "<>": "\\diamond",
+                    "=<": "\\impliedby",
+                    "==": "&=",
+                    "=>": "\\implies",
+                    ">=": "\\geq",
+                    ">>": "\\gg",
+                    "AA": "\\forall",
+                    "EE": "\\exists",
+                    "cb": "^3",
+                    "iff": "\\iff",
+                    "inn": "\\in",
+                    "notin": "\\not\\in",
+                    "sr": "^2",
+                    "xx": "\\times",
+                    "arccos": "\\arccos",
+                    "arccot": "\\arccot",
+                    "arccsc": "\\arccsc",
+                    "arcsec": "\\arcsec",
+                    "arcsin": "\\arcsin",
+                    "arctan": "\\arctan",
+                    "cos": "\\cos",
+                    "cot": "\\cot",
+                    "csc": "\\csc",
+                    "exp": "\\exp",
+                    "ln": "\\ln",
+                    "log": "\\log",
+                    "perp": "\\perp",
+                    "sin": "\\sin",
+                    "star": "\\star",
+                    "gcd": "\\gcd",
+                    "min": "\\min",
+                    "max": "\\max",
+                    "eqv": "\\equiv",
+                    "CC": "\\CC",
+                    "FF": "\\FF",
+                    "HH": "\\HH",
+                    "NN": "\\NN",
+                    "PP": "\\PP",
+                    "QQ": "\\QQ",
+                    "RR": "\\RR",
+                    "ZZ": "\\ZZ"
+                }
+            },
+            "greek_letters": {
+                "description": "Greek letters and symbols using semicolon prefix",
+                "snippets": {
+                    ";a": "\\alpha",
+                    ";A": "\\forall",
+                    ";;A": "\\aleph",
+                    ";b": "\\beta",
+                    ";;;c": "\\cos",
+                    ";;;C": "\\arccos",
+                    ";d": "\\delta",
+                    ";;d": "\\partial",
+                    ";D": "\\Delta",
+                    ";;D": "\\nabla",
+                    ";e": "\\epsilon",
+                    ";;e": "\\varepsilon",
+                    ";;;e": "\\exp",
+                    ";E": "\\exists",
+                    ";;;E": "\\ln",
+                    ";f": "\\phi",
+                    ";;f": "\\varphi",
+                    ";F": "\\Phi",
+                    ";g": "\\gamma",
+                    ";;;g": "\\lg",
+                    ";G": "\\Gamma",
+                    ";;;G": "10^{?}",
+                    ";h": "\\eta",
+                    ";;h": "\\hbar",
+                    ";i": "\\in",
+                    ";;i": "\\imath",
+                    ";I": "\\iota",
+                    ";;I": "\\Im",
+                    ";;j": "\\jmath",
+                    ";k": "\\kappa",
+                    ";l": "\\lambda",
+                    ";;l": "\\ell",
+                    ";;;l": "\\log",
+                    ";L": "\\Lambda",
+                    ";m": "\\mu",
+                    ";n": "\\nu",
+                    ";;;n": "\\ln",
+                    ";N": "\\nabla",
+                    ";;;N": "\\exp",
+                    ";o": "\\omega",
+                    ";O": "\\Omega",
+                    ";;O": "\\mho",
+                    ";p": "\\pi",
+                    ";;p": "\\varpi",
+                    ";P": "\\Pi",
+                    ";q": "\\theta",
+                    ";;q": "\\vartheta",
+                    ";Q": "\\Theta",
+                    ";r": "\\rho",
+                    ";;r": "\\varrho",
+                    ";;R": "\\Re",
+                    ";s": "\\sigma",
+                    ";;s": "\\varsigma",
+                    ";;;s": "\\sin",
+                    ";S": "\\Sigma",
+                    ";;;S": "\\arcsin",
+                    ";t": "\\tau",
+                    ";;;t": "\\tan",
+                    ";;;T": "\\arctan",
+                    ";u": "\\upsilon",
+                    ";U": "\\Upsilon",
+                    ";v": "\\vee",
+                    ";V": "\\Phi",
+                    ";w": "\\xi",
+                    ";W": "\\Xi",
+                    ";x": "\\chi",
+                    ";y": "\\psi",
+                    ";Y": "\\Psi",
+                    ";z": "\\zeta",
+                    ";0": "\\emptyset",
+                    ";8": "\\infty",
+                    ";!": "\\neg",
+                    ";^": "\\uparrow",
+                    ";&": "\\wedge",
+                    ";_": "\\downarrow",
+                    ";+": "\\cup",
+                    ";-": "\\leftrightarrow",
+                    ";;+": "\\oplus",
+                    ";;-": "\\longleftrightarrow",
+                    ";*": "\\times",
+                    ";/": "\\not",
+                    ";\\": "\\setminus",
+                    ";=": "\\Leftrightarrow",
+                    ";;=": "\\Longleftrightarrow",
+                    ";(": "\\langle",
+                    ";)": "\\rangle",
+                    ";[": "\\Leftarrow",
+                    ";;[": "\\Longleftarrow",
+                    ";]": "\\Rightarrow",
+                    ";;]": "\\Longrightarrow",
+                    ";{": "\\subset",
+                    ";}": "\\supset",
+                    ";<": "\\leftarrow",
+                    ";;<": "\\longleftarrow",
+                    ";;;<": "\\min",
+                    ";>": "\\rightarrow",
+                    ";;>": "\\longrightarrow",
+                    ";;;>": "\\max",
+                    ";'": "\\prime",
+                    ";.": "\\cdot"
+                }
+            },
+            "subscript_snippets": {
+                "description": "Automatic subscripts! Expand in math and after a single letter.",
+                "condition": "after_single_letter",
+                "snippets": {
+                    "ii": "_i",
+                    "ip1": "_{i+1}",
+                    "jj": "_j",
+                    "jp1": "_{j+1}",
+                    "nn": "_n",
+                    "np1": "_{n+1}",
+                    "kk": "_k",
+                    "kp1": "_{k+1}",
+                    "0": "_0",
+                    "1": "_1",
+                    "2": "_2",
+                    "3": "_3",
+                    "4": "_4",
+                    "5": "_5",
+                    "6": "_6",
+                    "7": "_7",
+                    "8": "_8",
+                    "9": "_9"
+                }
+            },
+            "fraction_snippets": {
+                "description": "Fraction snippets. Expand to template frac after //, or wrap object before point if it isn't /.",
+                "snippets": {
+                    "//": "\\frac{$1}{$2} $0"
+                },
+                "special_handlers": {
+                    "/": "frac_handler"
+                }
+            },
+            "accent_snippets": {
+                "description": "A simpler way to apply accents. Expand if LaTeX symbol immediately before point.",
+                "condition": "latex_symbol_before",
+                "snippets": {
+                    "'r": "\\mathrm{}",
+                    "'i": "\\mathit{}",
+                    "'b": "\\mathbf{}",
+                    "'e": "\\mathemph{}",
+                    "'y": "\\mathtt{}",
+                    "'f": "\\mathsf{}",
+                    "'l": "\\textsl{}",
+                    "'.": "\\dot{}",
+                    "':": "\\ddot{}",
+                    "'~": "\\tilde{}",
+                    "'N": "\\widetilde{}",
+                    "'^": "\\hat{}",
+                    "'H": "\\widehat{}",
+                    "'-": "\\bar{}",
+                    "'T": "\\overline{}",
+                    "'_": "\\underline{}",
+                    "'{": "\\overbrace{}",
+                    "'}": "\\underbrace{}",
+                    "'>": "\\vec{}",
+                    "'/": "\\grave{}",
+                    "'\"": "\\acute{}",
+                    "'v": "\\check{}",
+                    "'u": "\\breve{}",
+                    "'m": "\\mbox{}",
+                    "'c": "\\mathcal{}",
+                    "'0": "{\\textstyle }",
+                    "'1": "{\\displaystyle }",
+                    "'2": "{\\scriptstyle }",
+                    "'3": "{\\scriptscriptstyle }",
+                    "'q": "\\sqrt{}",
+                    ".. ": "\\dot{}",
+                    ",.": "\\vec{}",
+                    ".,": "\\vec{}",
+                    "~ ": "\\tilde{}",
+                    "hat": "\\hat{}",
+                    "bar": "\\overline{}"
+                }
+            },
+            "custom_snippets": {
+                "description": "Custom snippets that can be easily modified",
+                "snippets": {
+                    "supp": "\\supp",
+                    "On": "O(n)",
+                    "O1": "O(1)",
+                    "Olog": "O(\\log n)",
+                    "Olon": "O(n \\log n)",
+                    "Sum": "\\sum_{$1}^{$2} $0",
+                    "Span": "\\Span($1)$0",
+                    "qq": "\\sqrt{$1} $0",
+                    "int": "\\int_{$1}^{$2} $3 \\, d$4 $0",
+                    "lim": "\\lim_{$1 \\to $2} $0",
+                    "binom": "\\binom{$1}{$2} $0",
+                    "frac": "\\frac{$1}{$2} $0",
+                    "begin": "\\begin{$1}\n$2\n\\end{$1} $0",
+                    "matrix": "\\begin{pmatrix}\n$1 & $2 \\\\\n$3 & $4\n\\end{pmatrix} $0",
+                    "cases": "\\begin{cases}\n$1 & \\text{if } $2 \\\\\n$3 & \\text{if } $4\n\\end{cases} $0",
+                    "nfrac": "\\frac{\\frac{$01}{$02}$00}{$1} $0",
+                    "cfrac": "\\cfrac{$1}{$2 + \\cfrac{$01}{$02 + \\cfrac{$11}{$12}$10}$00} $0",
+                    "nested": "\\sqrt{\\frac{$01}{$02}$00 + $1} $0"
+                }
+            }
+        };
+        
+        async function initTest() {
+            snippetHandler = new LaTeXSnippetHandler(true); // Skip auto-loading
+            // Use embedded data instead of loading from file
+            snippetHandler.snippets = snippetsData;
+            
+            const testInput = document.getElementById('testInput');
+            const debug = document.getElementById('debug');
+            
+            testInput.addEventListener('keydown', (event) => {
+                if (!snippetHandler) return;
+                
+                // Handle Tab key for placeholder navigation
+                if (event.key === 'Tab') {
+                    const text = testInput.value;
+                    const cursorPosition = testInput.selectionStart;
+                    
+                    // Check if text contains any placeholders
+                    const hasPlaceholders = /\$\d+/.test(text);
+                    
+                    if (hasPlaceholders) {
+                        event.preventDefault();
+                        
+                        console.log('Tab pressed with placeholders in text:', text);
+                        
+                        const result = snippetHandler.handleTab(text, cursorPosition);
+                        
+                        console.log('Tab result:', result);
+                        
+                        if (result.changed) {
+                            testInput.value = result.text;
+                        }
+                        
+                        if (result.selectRange) {
+                            testInput.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+                        } else {
+                            testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+                        }
+                        
+                        // Debug info
+                        debug.innerHTML = `
+                            <strong>Debug (Tab Navigation):</strong><br>
+                            Has placeholders in text: ${hasPlaceholders}<br>
+                            Active snippet: ${snippetHandler.hasActiveSnippet()}<br>
+                            Placeholders: ${snippetHandler.placeholders.length}<br>
+                            Current placeholder: ${snippetHandler.currentPlaceholder}<br>
+                            Navigation order: ${snippetHandler.getNavigationOrder().map(p => '$' + p.number).join(', ')}<br>
+                            Result changed: ${result.changed}<br>
+                            Select range: ${result.selectRange ? '[' + result.selectRange[0] + ', ' + result.selectRange[1] + ']' : 'none'}<br>
+                            Text: "${text}"
+                        `;
+                        
+                        return;
+                    }
+                }
+                
+                // Don't clear active snippet when typing - let it persist until all placeholders are handled
+                // Only clear on specific navigation keys that indicate the user is done with the snippet
+                if (snippetHandler.hasActiveSnippet() && 
+                    ['Escape', 'Enter'].includes(event.key)) {
+                    snippetHandler.clearActiveSnippet();
+                    debug.innerHTML = '';
+                }
+            });
+            
+            testInput.addEventListener('keyup', (event) => {
+                if (!snippetHandler) return;
+                
+                const text = testInput.value;
+                const cursorPosition = testInput.selectionStart;
+                
+                // Skip processing if Tab key (handled in keydown)
+                if (event.key === 'Tab') {
+                    previousText = text;
+                    return;
+                }
+                
+                // Handle text change (for placeholder position updates)
+                if (previousText !== text) {
+                    const changeResult = snippetHandler.handleTextChange(previousText, text, cursorPosition);
+                    previousText = text;
+                    
+                    // Debug text change
+                    if (snippetHandler.hasActiveSnippet()) {
+                        debug.innerHTML = `
+                            <strong>Debug (Text Change):</strong><br>
+                            Active snippet: ${snippetHandler.hasActiveSnippet()}<br>
+                            Placeholders: ${snippetHandler.placeholders.length}<br>
+                            Current placeholder: ${snippetHandler.currentPlaceholder}<br>
+                            Navigation order: ${snippetHandler.getNavigationOrder().map(p => '$' + p.number).join(', ')}<br>
+                            Text: "${text}"
+                        `;
+                    }
+                }
+                
+                // Process snippets
+                const result = snippetHandler.processText(text, cursorPosition);
+                
+                if (result.changed) {
+                    testInput.value = result.text;
+                    previousText = result.text;
+                    
+                    if (result.selectRange) {
+                        testInput.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+                    } else {
+                        testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+                    }
+                    
+                    // Debug info
+                    debug.innerHTML = `
+                        <strong>Debug:</strong><br>
+                        Snippet expanded!<br>
+                        Active snippet: ${snippetHandler.hasActiveSnippet()}<br>
+                        Placeholders: ${snippetHandler.placeholders.length}<br>
+                        Current placeholder: ${snippetHandler.currentPlaceholder}<br>
+                        Navigation order: ${snippetHandler.getNavigationOrder().map(p => '$' + p.number).join(', ')}
+                    `;
+                }
+            });
+        }
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initTest);
+    </script>
+</body>
+</html>

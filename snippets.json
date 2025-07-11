@@ -251,7 +251,10 @@
       "frac": "\\frac{$1}{$2} $0",
       "begin": "\\begin{$1}\n$2\n\\end{$1} $0",
       "matrix": "\\begin{pmatrix}\n$1 & $2 \\\\\n$3 & $4\n\\end{pmatrix} $0",
-      "cases": "\\begin{cases}\n$1 & \\text{if } $2 \\\\\n$3 & \\text{if } $4\n\\end{cases} $0"
+      "cases": "\\begin{cases}\n$1 & \\text{if } $2 \\\\\n$3 & \\text{if } $4\n\\end{cases} $0",
+      "nfrac": "\\frac{\\frac{$01}{$02}$00}{$1} $0",
+      "cfrac": "\\cfrac{$1}{$2 + \\cfrac{$01}{$02 + \\cfrac{$11}{$12}$10}$00} $0",
+      "nested": "\\sqrt{\\frac{$01}{$02}$00 + $1} $0"
     }
   }
 }

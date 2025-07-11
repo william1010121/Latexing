@@ -1,6 +1,7 @@
 
 // Initialize snippet handler
 let snippetHandler = null;
+let previousText = '';
 
 function initializeSnippetHandler() {
     snippetHandler = new LaTeXSnippetHandler();
@@ -34,6 +35,8 @@ document.getElementById('inputBox').addEventListener('keydown', handleKeyDown);
 document.getElementById('latexType').addEventListener('change', updateOutput);
 
 function handleInputChange() {
+    const inputBox = document.getElementById('inputBox');
+    previousText = inputBox.value;
     updateOutput();
 }
 
@@ -44,30 +47,47 @@ function handleKeyDown(event) {
     
     // Handle Tab key for placeholder navigation
     if (event.key === 'Tab') {
-        if (snippetHandler.hasActiveSnippet()) {
+        const text = inputBox.value;
+        const cursorPosition = inputBox.selectionStart;
+        
+        // Check if text contains any placeholders
+        const hasPlaceholders = /\$\d+/.test(text);
+        
+        if (hasPlaceholders) {
             event.preventDefault();
             
-            const text = inputBox.value;
-            const cursorPosition = inputBox.selectionStart;
+            console.log('Tab pressed with placeholders in text:', text);
             
             const result = snippetHandler.handleTab(text, cursorPosition);
             
+            console.log('Tab result:', result);
+            
+            if (result.changed) {
+                inputBox.value = result.text;
+            }
+            
             if (result.selectRange) {
+                // Select the placeholder text so user can type to replace it
                 inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+                console.log('Selected range:', result.selectRange);
             } else {
                 inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
+            }
+            
+            // Update the output since text may have changed
+            if (result.changed) {
+                updateOutput();
             }
             
             return;
         }
     }
     
-    // Clear active snippet on other keys (except arrow keys)
+    // Don't clear active snippet when typing - let it persist until all placeholders are handled
+    // Only clear on specific navigation keys that indicate the user is done with the snippet
     if (snippetHandler.hasActiveSnippet() && 
-        !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
-        if (event.key !== 'Tab') {
-            snippetHandler.clearActiveSnippet();
-        }
+        ['Escape', 'Enter'].includes(event.key)) {
+        snippetHandler.clearActiveSnippet();
     }
 }
 
@@ -80,7 +100,14 @@ function handleKeyUp(event) {
     
     // Skip processing if Tab key (handled in keydown)
     if (event.key === 'Tab') {
+        previousText = text;
         return;
+    }
+    
+    // Handle text change (for placeholder position updates)
+    if (previousText !== text) {
+        const changeResult = snippetHandler.handleTextChange(previousText, text, cursorPosition);
+        previousText = text;
     }
     
     // Process snippets
@@ -88,6 +115,7 @@ function handleKeyUp(event) {
     
     if (result.changed) {
         inputBox.value = result.text;
+        previousText = result.text;
         
         if (result.selectRange) {
             inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);

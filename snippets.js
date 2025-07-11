@@ -4,12 +4,15 @@
  */
 
 class LaTeXSnippetHandler {
-    constructor() {
+    constructor(skipAutoLoad = false) {
         this.snippets = null;
         this.activeSnippet = null;
         this.placeholders = [];
         this.currentPlaceholder = 0;
-        this.loadSnippets();
+        this.lastSelectedPlaceholder = null;
+        if (!skipAutoLoad) {
+            this.loadSnippets();
+        }
     }
 
     async loadSnippets() {
@@ -44,6 +47,12 @@ class LaTeXSnippetHandler {
         const beforeCursor = text.substring(0, cursorPosition);
         const afterCursor = text.substring(cursorPosition);
 
+        // Check if we're at a placeholder position for nested expansion
+        const nestingResult = this.checkNestedExpansion(text, cursorPosition, beforeCursor, afterCursor);
+        if (nestingResult.changed) {
+            return nestingResult;
+        }
+
         // Try to expand snippets
         const result = this.expandSnippets(beforeCursor, afterCursor);
         
@@ -68,25 +77,38 @@ class LaTeXSnippetHandler {
      * @returns {object} - {text: newText, cursorPosition: newPosition, changed: boolean}
      */
     handleTab(text, cursorPosition) {
-        if (!this.activeSnippet || this.placeholders.length === 0) {
+        // Find all placeholders in the current text
+        const currentPlaceholders = this.findPlaceholdersInText(text);
+        
+        if (currentPlaceholders.length === 0) {
+            this.clearActiveSnippet();
             return { text, cursorPosition, changed: false };
         }
 
+        // Ensure we have an active snippet
+        if (!this.activeSnippet) {
+            this.reactivateSnippet(text);
+        }
+
+        // Update our placeholder list with current positions
+        this.placeholders = this.organizePlaceholders(currentPlaceholders);
+        
+        // Get the navigation order for placeholders
+        const navigationOrder = this.getNavigationOrder();
+        
         // Move to next placeholder
         this.currentPlaceholder++;
         
-        // Check if we've reached the end or $0
-        const numberedPlaceholders = this.placeholders.filter(p => p.number !== 0);
-        
-        if (this.currentPlaceholder >= numberedPlaceholders.length) {
+        if (this.currentPlaceholder >= navigationOrder.length) {
             // Move to $0 or end snippet
             const zeroPlaceholder = this.placeholders.find(p => p.number === 0);
             if (zeroPlaceholder) {
-                this.clearActiveSnippet();
+                // Select the $0 placeholder - don't clear yet, wait for user to type
                 return {
-                    text,
+                    text: text,
                     cursorPosition: zeroPlaceholder.start,
-                    changed: false
+                    changed: false,
+                    selectRange: [zeroPlaceholder.start, zeroPlaceholder.end]
                 };
             } else {
                 this.clearActiveSnippet();
@@ -94,12 +116,17 @@ class LaTeXSnippetHandler {
             }
         }
 
-        const placeholder = numberedPlaceholders[this.currentPlaceholder];
+        const placeholder = navigationOrder[this.currentPlaceholder];
+        
+        // Remember which placeholder was selected
+        this.lastSelectedPlaceholder = placeholder;
+        
+        // Select the placeholder text (don't remove it yet)
         return {
-            text,
+            text: text,
             cursorPosition: placeholder.start,
             changed: false,
-            selectRange: [placeholder.start, placeholder.start] // Select at current position
+            selectRange: [placeholder.start, placeholder.end]
         };
     }
 
@@ -110,14 +137,21 @@ class LaTeXSnippetHandler {
      * @returns {object} - Processed result
      */
     processPlaceholders(text, insertPosition) {
+        // Enhanced regex to handle nested placeholders (e.g., $00, $01, $02, $10, $11, $12)
         const placeholderRegex = /\$(\d+)/g;
         const placeholders = [];
         let match;
         
         // Find all placeholders
         while ((match = placeholderRegex.exec(text)) !== null) {
+            const fullNumber = match[1];
+            const level = Math.floor(fullNumber / 10); // 0 for $0-$9, 1 for $10-$19, etc.
+            const position = fullNumber % 10; // Position within the level
+            
             placeholders.push({
-                number: parseInt(match[1]),
+                number: parseInt(fullNumber),
+                level: level,
+                position: position,
                 start: match.index,
                 end: match.index + match[0].length,
                 text: match[0]
@@ -128,35 +162,21 @@ class LaTeXSnippetHandler {
             return { text, cursorPosition: insertPosition, hasPlaceholders: false };
         }
 
-        // Sort placeholders by position (reverse order for replacement)
-        const sortedForReplacement = [...placeholders].sort((a, b) => b.start - a.start);
-        
-        // Replace placeholders with empty strings, working backwards
+        // Keep placeholders visible - don't remove them initially
         let processedText = text;
         
-        for (const placeholder of sortedForReplacement) {
-            const replacement = '';
-            processedText = processedText.substring(0, placeholder.start) + 
-                          replacement + 
-                          processedText.substring(placeholder.end);
-        }
-        
-        // Recalculate placeholder positions after removal
+        // Store placeholder information without removing them from text
         const finalPlaceholders = [];
-        let offset = 0;
         
-        // Sort placeholders by original position for offset calculation
-        const sortedByPosition = [...placeholders].sort((a, b) => a.start - b.start);
-        
-        for (const placeholder of sortedByPosition) {
-            const newStart = placeholder.start - offset;
+        for (const placeholder of placeholders) {
             finalPlaceholders.push({
                 number: placeholder.number,
-                start: newStart,
-                end: newStart,
+                level: placeholder.level,
+                position: placeholder.position,
+                start: placeholder.start,
+                end: placeholder.end,
                 text: placeholder.text
             });
-            offset += placeholder.text.length; // Account for removed placeholder text
         }
         
         // Set up active snippet
@@ -165,22 +185,12 @@ class LaTeXSnippetHandler {
             startPosition: insertPosition
         };
         
-        // Separate $0 from other placeholders
-        const zeroPlaceholder = finalPlaceholders.find(p => p.number === 0);
-        const numberedPlaceholders = finalPlaceholders.filter(p => p.number !== 0);
-        
-        // Sort numbered placeholders by number
-        numberedPlaceholders.sort((a, b) => a.number - b.number);
-        
-        this.placeholders = numberedPlaceholders;
-        if (zeroPlaceholder) {
-            this.placeholders.push(zeroPlaceholder);
-        }
-        
+        // Organize placeholders by level and position
+        this.placeholders = this.organizePlaceholders(finalPlaceholders);
         this.currentPlaceholder = -1;
         
         // Position cursor at first placeholder
-        const firstPlaceholder = numberedPlaceholders[0];
+        const firstPlaceholder = this.getFirstPlaceholder();
         const cursorPosition = firstPlaceholder ? firstPlaceholder.start : insertPosition;
         
         return {
@@ -198,6 +208,7 @@ class LaTeXSnippetHandler {
         this.activeSnippet = null;
         this.placeholders = [];
         this.currentPlaceholder = 0;
+        this.lastSelectedPlaceholder = null;
     }
 
     /**
@@ -360,6 +371,243 @@ class LaTeXSnippetHandler {
         }
 
         return { beforeCursor, afterCursor, cursorOffset: 0, changed: false };
+    }
+
+    /**
+     * Organize placeholders by level and position for proper navigation
+     * @param {Array} placeholders - Array of placeholder objects
+     * @returns {Array} - Organized placeholders
+     */
+    organizePlaceholders(placeholders) {
+        // Group placeholders by level
+        const levels = {};
+        for (const placeholder of placeholders) {
+            if (!levels[placeholder.level]) {
+                levels[placeholder.level] = [];
+            }
+            levels[placeholder.level].push(placeholder);
+        }
+        
+        // Sort within each level by position
+        for (const level in levels) {
+            levels[level].sort((a, b) => a.position - b.position);
+        }
+        
+        return placeholders;
+    }
+    
+    /**
+     * Get the first placeholder in navigation order
+     * @returns {object|null} - First placeholder or null
+     */
+    getFirstPlaceholder() {
+        const navigationOrder = this.getNavigationOrder();
+        return navigationOrder.length > 0 ? navigationOrder[0] : null;
+    }
+    
+    /**
+     * Get navigation order for placeholders
+     * Priority: Level 0 first (1,2,3...), then level 1 (11,12,10...), etc.
+     * Special handling for $0 (always last)
+     * @returns {Array} - Ordered array of placeholders for navigation
+     */
+    getNavigationOrder() {
+        const orderedPlaceholders = this.placeholders.filter(p => p.number !== 0);
+        
+        // Sort by level first, then handle position within each level
+        orderedPlaceholders.sort((a, b) => {
+            if (a.level !== b.level) {
+                return a.level - b.level;
+            }
+            // Within same level, sort by position (0 comes last)
+            if (a.position !== b.position) {
+                if (a.position === 0) return 1;  // $X0 comes after $X1, $X2, etc.
+                if (b.position === 0) return -1; // $X1, $X2, etc. come before $X0
+                return a.position - b.position;  // Normal position order
+            }
+            return a.number - b.number;
+        });
+        
+        return orderedPlaceholders;
+    }
+
+    /**
+     * Update positions of remaining placeholders after removing one
+     * @param {object} removedPlaceholder - The placeholder that was removed
+     */
+    updatePlaceholderPositions(removedPlaceholder) {
+        const removedLength = removedPlaceholder.text.length;
+        
+        // Update positions of placeholders that come after the removed one
+        for (let i = 0; i < this.placeholders.length; i++) {
+            if (this.placeholders[i].start > removedPlaceholder.start) {
+                this.placeholders[i].start -= removedLength;
+                this.placeholders[i].end -= removedLength;
+            }
+        }
+    }
+
+    /**
+     * Update positions of remaining placeholders after replacing text
+     * @param {number} replaceStart - Start position of replaced text
+     * @param {number} replaceEnd - End position of replaced text
+     * @param {number} newLength - Length of new text
+     */
+    updatePlaceholderPositionsAfterReplacement(replaceStart, replaceEnd, newLength) {
+        const oldLength = replaceEnd - replaceStart;
+        const lengthDiff = newLength - oldLength;
+        
+        // Remove the replaced placeholder from our list
+        this.placeholders = this.placeholders.filter(p => 
+            !(p.start === replaceStart && p.end === replaceEnd)
+        );
+        
+        // Update positions of placeholders that come after the replacement
+        for (let i = 0; i < this.placeholders.length; i++) {
+            if (this.placeholders[i].start > replaceStart) {
+                this.placeholders[i].start += lengthDiff;
+                this.placeholders[i].end += lengthDiff;
+            }
+        }
+    }
+
+    /**
+     * Check if we should perform nested expansion
+     * @param {string} text - Full text content
+     * @param {number} cursorPosition - Current cursor position
+     * @param {string} beforeCursor - Text before cursor
+     * @param {string} afterCursor - Text after cursor
+     * @returns {object} - Expansion result
+     */
+    checkNestedExpansion(text, cursorPosition, beforeCursor, afterCursor) {
+        // Only check if we have an active snippet
+        if (!this.activeSnippet || !beforeCursor.endsWith('//')) {
+            return { text, cursorPosition, changed: false };
+        }
+
+        // Find the highest level of existing placeholders to determine nesting level
+        let maxLevel = 0;
+        for (const placeholder of this.placeholders) {
+            if (placeholder.level > maxLevel) {
+                maxLevel = placeholder.level;
+            }
+        }
+        
+        // Create nested placeholders at the next level
+        const nextLevel = maxLevel + 1;
+        const nestingLevel = nextLevel * 10; // 10 for level 1, 20 for level 2, etc.
+        
+        // Replace // with nested fraction
+        const nestedFraction = `\\frac{$${nestingLevel + 1}}{$${nestingLevel + 2}}$${nestingLevel}`;
+        const newBeforeCursor = beforeCursor.slice(0, -2) + nestedFraction;
+        const newText = newBeforeCursor + afterCursor;
+        
+        // Process the new placeholders
+        const expandedResult = this.processPlaceholders(newText, newBeforeCursor.length);
+        
+        return {
+            text: expandedResult.text,
+            cursorPosition: expandedResult.cursorPosition,
+            changed: true,
+            hasPlaceholders: expandedResult.hasPlaceholders
+        };
+    }
+
+    /**
+     * Handle text change after typing (to update placeholder positions)
+     * @param {string} oldText - Previous text
+     * @param {string} newText - New text after typing
+     * @param {number} cursorPosition - Current cursor position
+     * @returns {object} - Updated state
+     */
+    handleTextChange(oldText, newText, cursorPosition) {
+        // Don't process if no active snippet
+        if (!this.activeSnippet) {
+            return { text: newText, cursorPosition, changed: false };
+        }
+
+        // Simply update our placeholder list based on what's currently in the text
+        const currentPlaceholders = this.findPlaceholdersInText(newText);
+        
+        // If there are still placeholders in the text, keep the snippet active
+        if (currentPlaceholders.length > 0) {
+            // Update our internal placeholder list with current positions
+            this.placeholders = this.organizePlaceholders(currentPlaceholders);
+            
+            // Reset current placeholder index to prepare for next Tab navigation
+            // The next Tab press will increment this to 0 to select the first remaining placeholder
+            this.currentPlaceholder = -1;
+            
+            // Clear last selected placeholder since it might have been replaced
+            this.lastSelectedPlaceholder = null;
+        } else {
+            // No placeholders left, clear the snippet
+            this.clearActiveSnippet();
+        }
+        
+        return { text: newText, cursorPosition, changed: false };
+    }
+
+    /**
+     * Find all placeholders in the given text
+     * @param {string} text - Text to search
+     * @returns {Array} - Array of placeholder objects
+     */
+    findPlaceholdersInText(text) {
+        const placeholders = [];
+        const regex = /\$(\d+)/g;
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+            const fullNumber = match[1];
+            const level = Math.floor(fullNumber / 10);
+            const position = fullNumber % 10;
+            
+            placeholders.push({
+                number: parseInt(fullNumber),
+                level: level,
+                position: position,
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0]
+            });
+        }
+        
+        return placeholders;
+    }
+
+    /**
+     * Check if all placeholders have been handled
+     * @returns {boolean} - True if no placeholders remain
+     */
+    allPlaceholdersHandled() {
+        return this.placeholders.length === 0;
+    }
+
+    /**
+     * Reactivate snippet mode for text that contains placeholders
+     * @param {string} text - Current text content
+     */
+    reactivateSnippet(text) {
+        // Find all placeholders in the text
+        const placeholders = this.findPlaceholdersInText(text);
+        
+        if (placeholders.length > 0) {
+            // Reactivate the snippet
+            this.activeSnippet = {
+                text: text,
+                startPosition: 0
+            };
+            
+            // Set up placeholders
+            this.placeholders = this.organizePlaceholders(placeholders);
+            
+            // Reset to the beginning of navigation
+            this.currentPlaceholder = -1; // Will be incremented to 0 on first tab
+            this.lastSelectedPlaceholder = null;
+            
+            console.log('Reactivated snippet with placeholders:', this.placeholders.map(p => '$' + p.number));
+        }
     }
 
     /**
