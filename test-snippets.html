@@ -53,7 +53,8 @@
         <h2>Test Input Area</h2>
         <p>Type in the text area below to test snippet expansion:</p>
         <textarea id="testInput" placeholder="Try typing: ;a, ->, //, aa, etc..."></textarea>
-        <p><strong>Instructions:</strong> Type a snippet trigger and it should automatically expand. Try the examples below.</p>
+        <p><strong>Instructions:</strong> Type a snippet trigger and it should automatically expand. Use <kbd>Tab</kbd> to navigate between placeholders ($1, $2, ..., $0). Try the examples below.</p>
+        <div id="status" style="margin-top: 10px; padding: 10px; background: #e8f4f8; border-radius: 4px; font-size: 12px;"></div>
     </div>
 
     <div class="snippet-examples">
@@ -85,19 +86,26 @@
         <div class="snippet-example">log becomes \\log</div>
         <div class="snippet-example">exp becomes \\exp</div>
 
-        <div class="snippet-category">Fractions</div>
-        <div class="snippet-example">// becomes \\frac{}{}</div>
-        <div class="snippet-example">ab/ becomes \\frac{ab}{}</div>
+        <div class="snippet-category">Fractions (with placeholders)</div>
+        <div class="snippet-example">// becomes \\frac{$1}{$2} $0</div>
+        <div class="snippet-example">ab/ becomes \\frac{ab}{$1} $0</div>
+        <div class="snippet-example">frac becomes \\frac{$1}{$2} $0</div>
 
         <div class="snippet-category">Subscripts (after letters)</div>
         <div class="snippet-example">a + ii becomes a_i</div>
         <div class="snippet-example">x + jj becomes x_j</div>
         <div class="snippet-example">n + 1 becomes n_1</div>
 
-        <div class="snippet-category">Custom</div>
+        <div class="snippet-category">Custom (with placeholders)</div>
         <div class="snippet-example">On becomes O(n)</div>
         <div class="snippet-example">O1 becomes O(1)</div>
-        <div class="snippet-example">qq becomes \\sqrt{}</div>
+        <div class="snippet-example">qq becomes \\sqrt{$1} $0</div>
+        <div class="snippet-example">Sum becomes \\sum_{$1}^{$2} $0</div>
+        <div class="snippet-example">int becomes \\int_{$1}^{$2} $3 \\, d$4 $0</div>
+        <div class="snippet-example">lim becomes \\lim_{$1 \\to $2} $0</div>
+        <div class="snippet-example">binom becomes \\binom{$1}{$2} $0</div>
+        <div class="snippet-example">matrix becomes \\begin{pmatrix}...</div>
+        <div class="snippet-example">cases becomes \\begin{cases}...</div>
     </div>
 
     <script src="./snippets.js"></script>
@@ -107,8 +115,55 @@
         
         // Add event listeners
         const testInput = document.getElementById('testInput');
+        const statusDiv = document.getElementById('status');
+        
+        function updateStatus() {
+            if (snippetHandler.hasActiveSnippet()) {
+                statusDiv.innerHTML = `<strong>Active Snippet:</strong> Use <kbd>Tab</kbd> to navigate between placeholders. Current placeholder: ${snippetHandler.currentPlaceholder + 1}/${snippetHandler.placeholders.length}`;
+                statusDiv.style.display = 'block';
+            } else {
+                statusDiv.style.display = 'none';
+            }
+        }
+        
+        testInput.addEventListener('keydown', function(event) {
+            // Handle Tab key for placeholder navigation
+            if (event.key === 'Tab') {
+                if (snippetHandler.hasActiveSnippet()) {
+                    event.preventDefault();
+                    
+                    const text = testInput.value;
+                    const cursorPosition = testInput.selectionStart;
+                    
+                    const result = snippetHandler.handleTab(text, cursorPosition);
+                    
+                    if (result.selectRange) {
+                        testInput.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+                    } else {
+                        testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+                    }
+                    
+                    updateStatus();
+                    return;
+                }
+            }
+            
+            // Clear active snippet on other keys (except arrow keys)
+            if (snippetHandler.hasActiveSnippet() && 
+                !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
+                if (event.key !== 'Tab') {
+                    snippetHandler.clearActiveSnippet();
+                    updateStatus();
+                }
+            }
+        });
         
         testInput.addEventListener('keyup', function(event) {
+            // Skip processing if Tab key (handled in keydown)
+            if (event.key === 'Tab') {
+                return;
+            }
+            
             const text = testInput.value;
             const cursorPosition = testInput.selectionStart;
             
@@ -117,12 +172,20 @@
             
             if (result.changed) {
                 testInput.value = result.text;
-                testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+                
+                if (result.selectRange) {
+                    testInput.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+                } else {
+                    testInput.setSelectionRange(result.cursorPosition, result.cursorPosition);
+                }
+                
+                updateStatus();
             }
         });
         
         // Focus on input
         testInput.focus();
+        updateStatus();
     </script>
 </body>
 </html>

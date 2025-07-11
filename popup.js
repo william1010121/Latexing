@@ -30,10 +30,45 @@ document.getElementById('inputBox').focus();
 
 document.getElementById('inputBox').addEventListener('input', handleInputChange);
 document.getElementById('inputBox').addEventListener('keyup', handleKeyUp);
+document.getElementById('inputBox').addEventListener('keydown', handleKeyDown);
 document.getElementById('latexType').addEventListener('change', updateOutput);
 
 function handleInputChange() {
     updateOutput();
+}
+
+function handleKeyDown(event) {
+    if (!snippetHandler) return;
+    
+    const inputBox = document.getElementById('inputBox');
+    
+    // Handle Tab key for placeholder navigation
+    if (event.key === 'Tab') {
+        if (snippetHandler.hasActiveSnippet()) {
+            event.preventDefault();
+            
+            const text = inputBox.value;
+            const cursorPosition = inputBox.selectionStart;
+            
+            const result = snippetHandler.handleTab(text, cursorPosition);
+            
+            if (result.selectRange) {
+                inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+            } else {
+                inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
+            }
+            
+            return;
+        }
+    }
+    
+    // Clear active snippet on other keys (except arrow keys)
+    if (snippetHandler.hasActiveSnippet() && 
+        !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
+        if (event.key !== 'Tab') {
+            snippetHandler.clearActiveSnippet();
+        }
+    }
 }
 
 function handleKeyUp(event) {
@@ -43,12 +78,23 @@ function handleKeyUp(event) {
     const text = inputBox.value;
     const cursorPosition = inputBox.selectionStart;
     
+    // Skip processing if Tab key (handled in keydown)
+    if (event.key === 'Tab') {
+        return;
+    }
+    
     // Process snippets
     const result = snippetHandler.processText(text, cursorPosition);
     
     if (result.changed) {
         inputBox.value = result.text;
-        inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
+        
+        if (result.selectRange) {
+            inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
+        } else {
+            inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
+        }
+        
         updateOutput();
     }
 }

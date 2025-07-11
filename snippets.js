@@ -6,6 +6,9 @@
 class LaTeXSnippetHandler {
     constructor() {
         this.snippets = null;
+        this.activeSnippet = null;
+        this.placeholders = [];
+        this.currentPlaceholder = 0;
         this.loadSnippets();
     }
 
@@ -39,15 +42,151 @@ class LaTeXSnippetHandler {
         
         if (result.changed) {
             const newText = result.beforeCursor + result.afterCursor;
-            const newCursorPosition = result.beforeCursor.length + result.cursorOffset;
+            const expandedResult = this.processPlaceholders(newText, result.beforeCursor.length + result.cursorOffset);
             return {
-                text: newText,
-                cursorPosition: newCursorPosition,
-                changed: true
+                text: expandedResult.text,
+                cursorPosition: expandedResult.cursorPosition,
+                changed: true,
+                hasPlaceholders: expandedResult.hasPlaceholders
             };
         }
 
         return { text, cursorPosition, changed: false };
+    }
+
+    /**
+     * Handle tab navigation between placeholders
+     * @param {string} text - Current text content
+     * @param {number} cursorPosition - Current cursor position
+     * @returns {object} - {text: newText, cursorPosition: newPosition, changed: boolean}
+     */
+    handleTab(text, cursorPosition) {
+        if (!this.activeSnippet || this.placeholders.length === 0) {
+            return { text, cursorPosition, changed: false };
+        }
+
+        // Move to next placeholder
+        this.currentPlaceholder++;
+        
+        if (this.currentPlaceholder >= this.placeholders.length) {
+            // Move to $0 or end snippet
+            const zeroPlaceholder = this.placeholders.find(p => p.number === 0);
+            if (zeroPlaceholder) {
+                this.clearActiveSnippet();
+                return {
+                    text,
+                    cursorPosition: zeroPlaceholder.start,
+                    changed: false
+                };
+            } else {
+                this.clearActiveSnippet();
+                return { text, cursorPosition, changed: false };
+            }
+        }
+
+        const placeholder = this.placeholders[this.currentPlaceholder];
+        return {
+            text,
+            cursorPosition: placeholder.start,
+            changed: false,
+            selectRange: [placeholder.start, placeholder.end]
+        };
+    }
+
+    /**
+     * Process placeholders in expanded text
+     * @param {string} text - Text with placeholders
+     * @param {number} insertPosition - Position where snippet was inserted
+     * @returns {object} - Processed result
+     */
+    processPlaceholders(text, insertPosition) {
+        const placeholderRegex = /\$(\d+)/g;
+        const placeholders = [];
+        let match;
+        
+        // Find all placeholders
+        while ((match = placeholderRegex.exec(text)) !== null) {
+            placeholders.push({
+                number: parseInt(match[1]),
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0]
+            });
+        }
+        
+        if (placeholders.length === 0) {
+            return { text, cursorPosition: insertPosition, hasPlaceholders: false };
+        }
+
+        // Sort placeholders by number
+        placeholders.sort((a, b) => a.number - b.number);
+        
+        // Replace placeholders with empty strings or default content
+        let processedText = text;
+        let offset = 0;
+        
+        for (let i = placeholders.length - 1; i >= 0; i--) {
+            const placeholder = placeholders[i];
+            const replacement = placeholder.number === 0 ? '' : '';
+            processedText = processedText.substring(0, placeholder.start) + 
+                          replacement + 
+                          processedText.substring(placeholder.end);
+            
+            // Update placeholder positions
+            placeholder.start = placeholder.start;
+            placeholder.end = placeholder.start + replacement.length;
+        }
+        
+        // Update positions after text replacement
+        for (let i = 0; i < placeholders.length; i++) {
+            const placeholder = placeholders[i];
+            const precedingPlaceholders = placeholders.slice(0, i);
+            const offset = precedingPlaceholders.reduce((acc, p) => acc + (p.text.length - 0), 0);
+            placeholder.start -= offset;
+            placeholder.end = placeholder.start;
+        }
+        
+        // Set up active snippet
+        this.activeSnippet = {
+            text: processedText,
+            startPosition: insertPosition
+        };
+        this.placeholders = placeholders.filter(p => p.number !== 0);
+        this.currentPlaceholder = -1;
+        
+        // Find $0 placeholder for final position
+        const zeroPlaceholder = placeholders.find(p => p.number === 0);
+        if (zeroPlaceholder) {
+            this.placeholders.push(zeroPlaceholder);
+        }
+        
+        // Position cursor at first placeholder
+        const firstPlaceholder = this.placeholders.find(p => p.number === 1);
+        const cursorPosition = firstPlaceholder ? firstPlaceholder.start : insertPosition;
+        
+        return {
+            text: processedText,
+            cursorPosition,
+            hasPlaceholders: true,
+            selectRange: firstPlaceholder ? [firstPlaceholder.start, firstPlaceholder.end] : null
+        };
+    }
+
+    /**
+     * Clear active snippet state
+     */
+    clearActiveSnippet() {
+        this.activeSnippet = null;
+        this.placeholders = [];
+        this.currentPlaceholder = 0;
+    }
+
+    /**
+     * Check if currently in an active snippet
+     * @returns {boolean}
+     */
+    hasActiveSnippet() {
+        return this.activeSnippet !== null;
     }
 
     /**
@@ -176,27 +315,27 @@ class LaTeXSnippetHandler {
             return { beforeCursor, afterCursor, cursorOffset: 0, changed: false };
         }
 
-        // Handle // -> \frac{}{}
+        // Handle // -> \frac{$1}{$2} $0
         if (beforeCursor.endsWith('//')) {
-            const newBeforeCursor = beforeCursor.slice(0, -2) + '\\frac{}{';
+            const newBeforeCursor = beforeCursor.slice(0, -2) + '\\frac{$1}{$2} $0';
             return {
                 beforeCursor: newBeforeCursor,
-                afterCursor: '}' + afterCursor,
-                cursorOffset: -2, // Position cursor in first braces
+                afterCursor,
+                cursorOffset: 0,
                 changed: true
             };
         }
 
-        // Handle ab/ -> \frac{ab}{}
+        // Handle ab/ -> \frac{ab}{$1} $0
         const fractionMatch = beforeCursor.match(/([a-zA-Z0-9_^{}\\]+)\/$/)
         if (fractionMatch) {
             const content = fractionMatch[1];
             const beforeContent = beforeCursor.slice(0, -content.length - 1);
-            const newBeforeCursor = beforeContent + `\\frac{${content}}{`;
+            const newBeforeCursor = beforeContent + `\\frac{${content}}{$1} $0`;
             return {
                 beforeCursor: newBeforeCursor,
-                afterCursor: '}' + afterCursor,
-                cursorOffset: -1, // Position cursor in second braces
+                afterCursor,
+                cursorOffset: 0,
                 changed: true
             };
         }
