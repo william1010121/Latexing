@@ -63,7 +63,8 @@ class LaTeXSnippetHandler {
                 text: expandedResult.text,
                 cursorPosition: expandedResult.cursorPosition,
                 changed: true,
-                hasPlaceholders: expandedResult.hasPlaceholders
+                hasPlaceholders: expandedResult.hasPlaceholders,
+                selectRange: expandedResult.selectRange
             };
         }
 
@@ -187,7 +188,7 @@ class LaTeXSnippetHandler {
         
         // Organize placeholders by level and position
         this.placeholders = this.organizePlaceholders(finalPlaceholders);
-        this.currentPlaceholder = -1;
+        this.currentPlaceholder = 0; // First placeholder is already selected
         
         // Position cursor at first placeholder
         const firstPlaceholder = this.getFirstPlaceholder();
@@ -197,7 +198,7 @@ class LaTeXSnippetHandler {
             text: processedText,
             cursorPosition,
             hasPlaceholders: true,
-            selectRange: firstPlaceholder ? [firstPlaceholder.start, firstPlaceholder.start] : null
+            selectRange: firstPlaceholder ? [firstPlaceholder.start, firstPlaceholder.end] : null
         };
     }
 
