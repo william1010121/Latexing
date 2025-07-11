@@ -387,7 +387,8 @@ class FloatingLatexEditor {
         }
         
         const latexContent = (type === "inline" ? `\\(${input}\\)` : `\\[${input}\\]`);
-        preview.innerHTML = latexContent;
+        preview.innerHTML = (type === "inline" ? `\\(${input}\\)` : `\\[${input}\\]`);
+
         
         if (typeof MathJax !== 'undefined') {
             console.log('Processing with MathJax:', latexContent);
