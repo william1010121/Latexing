@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test LaTeX Editor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .info { background: #e3f2fd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Test Page for LaTeX Editor</h1>
+    <div class="info">
+        <p><strong>Instructions:</strong></p>
+        <p>1. Make sure the Chrome extension is loaded and active</p>
+        <p>2. Press <strong>Command+L</strong> (Mac) or <strong>Ctrl+L</strong> (Windows/Linux) to open the floating LaTeX editor</p>
+        <p>3. Open the browser console (F12) to see debug logs</p>
+        <p>4. Try typing some text and then pressing the keyboard shortcut</p>
+    </div>
+    
+    <div id="debug" class="debug">
+        Debug logs will appear in the browser console...
+    </div>
+    
+    <script>
+        console.log('Test page loaded');
+        
+        // Test if we can detect the key combination on this page
+        document.addEventListener('keydown', (event) => {
+            console.log('Page detected key:', event.key, 'metaKey:', event.metaKey, 'ctrlKey:', event.ctrlKey);
+            
+            if ((event.metaKey || event.ctrlKey) && event.key === 'l') {
+                console.log('Page detected Command+L - extension should handle this');
+            }
+        });
+        
+        // Update debug info periodically
+        setInterval(() => {
+            const debugDiv = document.getElementById('debug');
+            debugDiv.innerHTML = `
+                <strong>Current time:</strong> ${new Date().toLocaleTimeString()}<br>
+                <strong>Page URL:</strong> ${window.location.href}<br>
+                <strong>Document ready state:</strong> ${document.readyState}<br>
+                <strong>Chrome extension context:</strong> ${typeof chrome !== 'undefined' ? 'Available' : 'Not available'}<br>
+                <strong>Console:</strong> Check browser console for extension logs
+            `;
+        }, 1000);
+    </script>
+</body>
+</html>

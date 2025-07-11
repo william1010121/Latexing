@@ -14,8 +14,15 @@ class LaTeXSnippetHandler {
 
     async loadSnippets() {
         try {
-            const response = await fetch('./snippets.json');
-            this.snippets = await response.json();
+            // Check if we're in a content script (chrome.runtime available)
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                const response = await fetch(chrome.runtime.getURL('snippets.json'));
+                this.snippets = await response.json();
+            } else {
+                // Fallback for popup context
+                const response = await fetch('./snippets.json');
+                this.snippets = await response.json();
+            }
         } catch (error) {
             console.error('Failed to load snippets:', error);
             this.snippets = {};

@@ -5,8 +5,31 @@
     "description": "A simple LaTeX editor with real-time preview and image copy functionality.",
     "permissions": [
       "clipboardWrite",
-      "storage"
+      "storage",
+      "activeTab"
     ],
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["tex-svg-full.js", "converter.js", "snippets.js", "content-script.js"],
+        "run_at": "document_end"
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["snippets.json"],
+        "matches": ["<all_urls>"]
+      }
+    ],
+    "commands": {
+      "toggle_latex_editor": {
+        "suggested_key": {
+          "default": "Ctrl+L",
+          "mac": "Command+L"
+        },
+        "description": "Toggle LaTeX editor overlay"
+      }
+    },
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
