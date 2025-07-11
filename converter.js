@@ -316,15 +316,18 @@ class LaTeXConverter {
         try {
             let result = input;
             
-            // First, handle LaTeX commands
+            // Handle delimiters (remove \left and \right)
+            result = this.handleDelimiters(result);
+            
+            // Handle fractions (which may contain LaTeX symbols)
+            result = this.handleFractions(result);
+            
+            // Then handle LaTeX commands
             result = this.replaceSymbols(result);
             
-            // Then handle superscripts and subscripts
+            // Finally handle superscripts and subscripts
             result = this.handleSuperscripts(result);
             result = this.handleSubscripts(result);
-            
-            // Handle fractions
-            result = this.handleFractions(result);
             
             return result;
         } catch (error) {
@@ -388,22 +391,43 @@ class LaTeXConverter {
         }).join('');
     }
 
+    handleDelimiters(text) {
+        // Remove \left and \right commands but keep the delimiters
+        text = text.replace(/\\left\s*/g, '');
+        text = text.replace(/\\right\s*/g, '');
+        
+        // Handle \dfrac (same as \frac for our purposes)
+        text = text.replace(/\\dfrac/g, '\\frac');
+        
+        return text;
+    }
+
     handleFractions(text) {
-        // Handle simple fractions: \frac{a}{b}
-        text = text.replace(/\\frac{([^}]+)}{([^}]+)}/g, (match, numerator, denominator) => {
-            // Convert to Unicode fraction if it's a simple case
-            if (numerator.length === 1 && denominator.length === 1) {
-                const fractionMap = {
-                    '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾',
-                    '1/5': '⅕', '2/5': '⅖', '3/5': '⅗', '4/5': '⅘', '1/6': '⅙',
-                    '5/6': '⅚', '1/7': '⅐', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝',
-                    '7/8': '⅞', '1/9': '⅑', '1/10': '⅒'
-                };
-                const key = `${numerator}/${denominator}`;
-                return fractionMap[key] || `${numerator}/${denominator}`;
-            }
-            return `${numerator}/${denominator}`;
-        });
+        // Handle fractions with nested content first (recursive approach)
+        let maxIterations = 10;
+        let iteration = 0;
+        
+        while (text.includes('\\frac') && iteration < maxIterations) {
+            text = text.replace(/\\frac{([^{}]*(?:{[^{}]*}[^{}]*)*)}{([^{}]*(?:{[^{}]*}[^{}]*)*)}/g, (match, numerator, denominator) => {
+                // Recursively process numerator and denominator
+                let processedNumerator = this.replaceSymbols(numerator);
+                let processedDenominator = this.replaceSymbols(denominator);
+                
+                // Convert to Unicode fraction if it's a simple case
+                if (processedNumerator.length === 1 && processedDenominator.length === 1) {
+                    const fractionMap = {
+                        '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾',
+                        '1/5': '⅕', '2/5': '⅖', '3/5': '⅗', '4/5': '⅘', '1/6': '⅙',
+                        '5/6': '⅚', '1/7': '⅐', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝',
+                        '7/8': '⅞', '1/9': '⅑', '1/10': '⅒'
+                    };
+                    const key = `${processedNumerator}/${processedDenominator}`;
+                    return fractionMap[key] || `${processedNumerator}/${processedDenominator}`;
+                }
+                return `${processedNumerator}/${processedDenominator}`;
+            });
+            iteration++;
+        }
         
         return text;
     }
