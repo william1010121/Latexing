@@ -1,7 +1,6 @@
 // Content script for floating LaTeX editor
 class FloatingLatexEditor {
     constructor() {
-        console.log('FloatingLatexEditor constructor called');
         this.isVisible = false;
         this.overlay = null;
         this.editor = null;
@@ -11,7 +10,6 @@ class FloatingLatexEditor {
         this.setupKeyboardListener();
         this.initializeSnippetHandler();
         this.initializeMathJax();
-        console.log('FloatingLatexEditor initialized');
     }
 
     initializeSnippetHandler() {
@@ -22,10 +20,8 @@ class FloatingLatexEditor {
 
     initializeMathJax() {
         if (typeof MathJax !== 'undefined') {
-            console.log('MathJax is available');
             // Wait for MathJax to be ready
             MathJax.startup.promise.then(() => {
-                console.log('MathJax is ready');
                 this.mathJaxReady = true;
             }).catch((error) => {
                 console.error('MathJax initialization error:', error);
@@ -36,11 +32,8 @@ class FloatingLatexEditor {
     }
 
     setupKeyboardListener() {
-        console.log('Setting up keyboard listener');
         document.addEventListener('keydown', (event) => {
-            console.log('Key pressed:', event.key, 'metaKey:', event.metaKey, 'ctrlKey:', event.ctrlKey);
-            if ((event.metaKey || event.ctrlKey) && event.key === 'l') {
-                console.log('Command+L detected, toggling editor');
+            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'L') {
                 event.preventDefault();
                 this.toggle();
             }
@@ -48,18 +41,23 @@ class FloatingLatexEditor {
 
         // Listen for chrome commands
         if (typeof chrome !== 'undefined' && chrome.commands) {
-            console.log('Setting up chrome commands listener');
+            
             chrome.commands.onCommand.addListener((command) => {
-                console.log('Chrome command received:', command);
                 if (command === 'toggle_latex_editor') {
                     this.toggle();
                 }
             });
+            
+            // Check what commands are available
+            chrome.commands.getAll((commands) => {
+                // no-op; previously logged available commands
+            });
+        } else {
+            // Chrome commands API not available in this context
         }
     }
 
     toggle() {
-        console.log('Toggle called, current visibility:', this.isVisible);
         if (this.isVisible) {
             this.hide();
         } else {
@@ -68,17 +66,13 @@ class FloatingLatexEditor {
     }
 
     show() {
-        console.log('Show called');
         if (!this.overlay) {
-            console.log('Creating overlay');
             this.createOverlay();
         }
-        console.log('Setting overlay display to flex');
         this.overlay.style.display = 'flex';
         this.isVisible = true;
         this.focusInput();
         this.loadData();
-        console.log('Editor should now be visible');
     }
 
     hide() {
@@ -391,9 +385,7 @@ class FloatingLatexEditor {
 
         
         if (typeof MathJax !== 'undefined') {
-            console.log('Processing with MathJax:', latexContent);
             MathJax.typesetPromise([preview]).then(() => {
-                console.log('MathJax typeset successful');
                 this.renderLatexToCanvas(input, type);
             }).catch((error) => {
                 console.error('MathJax typeset error:', error);
@@ -440,7 +432,7 @@ class FloatingLatexEditor {
         canvas.toBlob((blob) => {
             const item = new ClipboardItem({'image/png': blob});
             navigator.clipboard.write([item]).then(() => {
-                console.log('Image copied to clipboard');
+                // Image copied successfully
             }).catch((error) => {
                 console.error('Error copying image: ', error);
             });
@@ -456,7 +448,7 @@ class FloatingLatexEditor {
         if (typeof latexConverter !== 'undefined') {
             const unicodeText = latexConverter.convertToUnicode(input);
             navigator.clipboard.writeText(unicodeText).then(() => {
-                console.log('Unicode text copied to clipboard');
+                // Unicode text copied successfully
             }).catch((error) => {
                 console.error('Error copying Unicode text: ', error);
             });
@@ -471,13 +463,11 @@ class FloatingLatexEditor {
                     floatingLatexType: latexType
                 }, () => {
                     if (chrome.runtime.lastError) {
-                        console.log("Storage save failed:", chrome.runtime.lastError.message);
-                    } else {
-                        console.log("Floating editor data saved");
+                        console.error("Storage save failed:", chrome.runtime.lastError.message);
                     }
                 });
             } catch (error) {
-                console.log("Extension context invalidated, cannot save data:", error.message);
+                console.error("Extension context invalidated, cannot save data:", error.message);
             }
         }
     }
@@ -487,7 +477,7 @@ class FloatingLatexEditor {
             try {
                 chrome.storage.sync.get(['floatingInput', 'floatingLatexType'], (data) => {
                     if (chrome.runtime.lastError) {
-                        console.log("Storage load failed:", chrome.runtime.lastError.message);
+                        console.error("Storage load failed:", chrome.runtime.lastError.message);
                         return;
                     }
                     if (data.floatingInput) {
@@ -499,22 +489,17 @@ class FloatingLatexEditor {
                     this.updatePreview();
                 });
             } catch (error) {
-                console.log("Extension context invalidated, cannot load data:", error.message);
+                console.error("Extension context invalidated, cannot load data:", error.message);
             }
         }
     }
 }
 
 // Initialize the floating editor when the page loads
-console.log('LaTeX Editor content script loaded');
-
 if (document.readyState === 'loading') {
-    console.log('Document loading, waiting for DOMContentLoaded');
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOMContentLoaded fired, initializing FloatingLatexEditor');
         new FloatingLatexEditor();
     });
 } else {
-    console.log('Document already loaded, initializing FloatingLatexEditor immediately');
     new FloatingLatexEditor();
 }

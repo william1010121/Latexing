@@ -9,7 +9,7 @@ function initializeSnippetHandler() {
 
 function saveData(input, latexType) {
     chrome.storage.sync.set({input: input, latexType: latexType}, function() {
-        console.log("Save");
+        // data saved
     });
 }
 
@@ -56,11 +56,7 @@ function handleKeyDown(event) {
         if (hasPlaceholders) {
             event.preventDefault();
             
-            console.log('Tab pressed with placeholders in text:', text);
-            
             const result = snippetHandler.handleTab(text, cursorPosition);
-            
-            console.log('Tab result:', result);
             
             if (result.changed) {
                 inputBox.value = result.text;
@@ -69,7 +65,6 @@ function handleKeyDown(event) {
             if (result.selectRange) {
                 // Select the placeholder text so user can type to replace it
                 inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
-                console.log('Selected range:', result.selectRange);
             } else {
                 inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
             }
@@ -155,7 +150,7 @@ document.getElementById('copyUnicodeButton').addEventListener('click', function(
     var unicodeText = latexConverter.convertToUnicode(input);
     
     navigator.clipboard.writeText(unicodeText).then(function() {
-        console.log('Unicode text copied to clipboard');
+        // Unicode text copied successfully
     }).catch(function(error) {
         console.error('Error copying Unicode text: ', error);
     });

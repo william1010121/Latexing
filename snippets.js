@@ -607,7 +607,7 @@ class LaTeXSnippetHandler {
             this.currentPlaceholder = -1; // Will be incremented to 0 on first tab
             this.lastSelectedPlaceholder = null;
             
-            console.log('Reactivated snippet with placeholders:', this.placeholders.map(p => '$' + p.number));
+            // Reactivated snippet with placeholders
         }
     }
 
