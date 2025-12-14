@@ -32,29 +32,14 @@ class FloatingLatexEditor {
     }
 
     setupKeyboardListener() {
-        document.addEventListener('keydown', (event) => {
-            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'L') {
-                event.preventDefault();
+        // Listen for messages from background script (for Ctrl+Shift+L shortcut)
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === 'toggle_latex_editor') {
                 this.toggle();
+                sendResponse({success: true});
             }
+            return true;
         });
-
-        // Listen for chrome commands
-        if (typeof chrome !== 'undefined' && chrome.commands) {
-            
-            chrome.commands.onCommand.addListener((command) => {
-                if (command === 'toggle_latex_editor') {
-                    this.toggle();
-                }
-            });
-            
-            // Check what commands are available
-            chrome.commands.getAll((commands) => {
-                // no-op; previously logged available commands
-            });
-        } else {
-            // Chrome commands API not available in this context
-        }
     }
 
     toggle() {
