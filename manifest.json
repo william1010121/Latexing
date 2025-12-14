@@ -6,7 +6,8 @@
     "permissions": [
       "clipboardWrite",
       "storage",
-      "activeTab"
+      "activeTab",
+      "tabs"
     ],
     "content_scripts": [
       {
@@ -21,13 +22,16 @@
         "matches": ["<all_urls>"]
       }
     ],
+    "background": {
+      "service_worker": "background.js"
+    },
     "commands": {
-      "toggle_latex_editor": {
+      "toggle_latex_float_editor": {
         "suggested_key": {
           "default": "Ctrl+Shift+L",
           "mac": "Command+Shift+L"
         },
-        "description": "Toggle LaTeX editor overlay"
+        "description": "Toggle floating LaTeX editor"
       }
     },
     "action": {
