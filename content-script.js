@@ -86,6 +86,10 @@ class FloatingLatexEditor {
                     <button id="latex-copy-image">Copy as Image</button>
                     <button id="latex-copy-unicode">Copy as Unicode</button>
                 </div>
+                <div id="shortcut-container">
+                    <input type="checkbox" id="latex-shortcut-toggle" checked>
+                    <label for="latex-shortcut-toggle">Use Shortcuts (;;d → \\partial)</label>
+                </div>
                 <canvas id="latex-canvas" style="display: none;"></canvas>
             </div>
         `;
@@ -233,6 +237,28 @@ class FloatingLatexEditor {
             .latex-editor-buttons button:active {
                 background: #004666;
             }
+
+            #shortcut-container {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 1px solid #ddd;
+            }
+
+            #latex-shortcut-toggle {
+                cursor: pointer;
+                width: 18px;
+                height: 18px;
+            }
+
+            #shortcut-container label {
+                cursor: pointer;
+                color: #333;
+                font-size: 14px;
+                margin: 0;
+            }
         `;
 
         document.head.appendChild(style);
@@ -263,7 +289,7 @@ class FloatingLatexEditor {
         // Input and type change handlers
         const input = this.overlay.querySelector('#latex-input');
         const typeSelect = this.overlay.querySelector('#latex-type');
-        
+
         input.addEventListener('input', () => this.updatePreview());
         input.addEventListener('keyup', (event) => this.handleKeyUp(event));
         input.addEventListener('keydown', (event) => this.handleKeyDown(event));
@@ -272,75 +298,92 @@ class FloatingLatexEditor {
         // Copy buttons
         const copyImageBtn = this.overlay.querySelector('#latex-copy-image');
         const copyUnicodeBtn = this.overlay.querySelector('#latex-copy-unicode');
-        
+
         copyImageBtn.addEventListener('click', () => this.copyAsImage());
         copyUnicodeBtn.addEventListener('click', () => this.copyAsUnicode());
+
+        // Shortcut toggle
+        const shortcutToggle = this.overlay.querySelector('#latex-shortcut-toggle');
+        shortcutToggle.addEventListener('change', (event) => this.handleShortcutToggle(event));
     }
 
     handleKeyDown(event) {
-        if (!this.snippetHandler) return;
-        
+        if (!this.snippetHandler || !this.snippetHandler.enabled) return;
+
         const inputBox = this.overlay.querySelector('#latex-input');
-        
+
         // Handle Tab key for placeholder navigation
         if (event.key === 'Tab') {
             if (this.snippetHandler.hasActiveSnippet()) {
                 event.preventDefault();
-                
+
                 const text = inputBox.value;
                 const cursorPosition = inputBox.selectionStart;
-                
+
                 const result = this.snippetHandler.handleTab(text, cursorPosition);
-                
+
                 if (result.selectRange) {
                     inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
                 } else {
                     inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
                 }
-                
+
                 return;
             }
         }
-        
+
         // Only clear on specific navigation keys that indicate the user is done with the snippet
-        if (this.snippetHandler.hasActiveSnippet() && 
+        if (this.snippetHandler.hasActiveSnippet() &&
             ['Escape', 'Enter'].includes(event.key)) {
             this.snippetHandler.clearActiveSnippet();
         }
     }
 
     handleKeyUp(event) {
-        if (!this.snippetHandler) return;
-        
+        if (!this.snippetHandler || !this.snippetHandler.enabled) return;
+
         const inputBox = this.overlay.querySelector('#latex-input');
         const text = inputBox.value;
         const cursorPosition = inputBox.selectionStart;
-        
+
         // Skip processing if Tab key (handled in keydown)
         if (event.key === 'Tab') {
+            this.previousText = text;
             return;
         }
-        
+
         // Handle text change (for placeholder position updates)
         if (this.previousText !== text) {
             this.snippetHandler.handleTextChange(this.previousText, text, cursorPosition);
             this.previousText = text;
         }
-        
+
         // Process snippets
         const result = this.snippetHandler.processText(text, cursorPosition);
-        
+
         if (result.changed) {
             inputBox.value = result.text;
-            
+
             if (result.selectRange) {
                 inputBox.setSelectionRange(result.selectRange[0], result.selectRange[1]);
             } else {
                 inputBox.setSelectionRange(result.cursorPosition, result.cursorPosition);
             }
-            
+
             this.updatePreview();
         }
+    }
+
+    handleShortcutToggle(event) {
+        const enabled = event.target.checked;
+        if (this.snippetHandler) {
+            this.snippetHandler.setEnabled(enabled);
+        }
+        this.saveData(
+            this.overlay.querySelector('#latex-input').value,
+            this.overlay.querySelector('#latex-type').value,
+            enabled
+        );
     }
 
     focusInput() {
@@ -440,13 +483,17 @@ class FloatingLatexEditor {
         }
     }
 
-    saveData(input, latexType) {
+    saveData(input, latexType, shortcutEnabled = null) {
         if (typeof chrome !== 'undefined' && chrome.storage) {
             try {
-                chrome.storage.sync.set({
-                    floatingInput: input, 
+                const data = {
+                    floatingInput: input,
                     floatingLatexType: latexType
-                }, () => {
+                };
+                if (shortcutEnabled !== null) {
+                    data.floatingShortcutEnabled = shortcutEnabled;
+                }
+                chrome.storage.sync.set(data, () => {
                     if (chrome.runtime.lastError) {
                         console.error("Storage save failed:", chrome.runtime.lastError.message);
                     }
@@ -460,7 +507,7 @@ class FloatingLatexEditor {
     loadData() {
         if (typeof chrome !== 'undefined' && chrome.storage) {
             try {
-                chrome.storage.sync.get(['floatingInput', 'floatingLatexType'], (data) => {
+                chrome.storage.sync.get(['floatingInput', 'floatingLatexType', 'floatingShortcutEnabled'], (data) => {
                     if (chrome.runtime.lastError) {
                         console.error("Storage load failed:", chrome.runtime.lastError.message);
                         return;
@@ -470,6 +517,12 @@ class FloatingLatexEditor {
                     }
                     if (data.floatingLatexType) {
                         this.overlay.querySelector('#latex-type').value = data.floatingLatexType;
+                    }
+                    // Load shortcut toggle state, default to true
+                    const shortcutEnabled = data.floatingShortcutEnabled !== undefined ? data.floatingShortcutEnabled : true;
+                    this.overlay.querySelector('#latex-shortcut-toggle').checked = shortcutEnabled;
+                    if (this.snippetHandler) {
+                        this.snippetHandler.setEnabled(shortcutEnabled);
                     }
                     this.updatePreview();
                 });
