@@ -51,8 +51,14 @@
         <option value="display">Display \\[ \\]</option>
     </select>
     <div id="outputBox"></div>
-    <button id="copyButton">Copy as Image</button>
-    <button id="copyUnicodeButton">Copy as Unicode</button>
+    <div id="buttonContainer" style="display: flex; gap: 10px; margin-top: 10px;">
+        <button id="copyButton" style="flex: 1;">Copy as Image</button>
+        <button id="copyUnicodeButton" style="flex: 1;">Copy as Unicode</button>
+    </div>
+    <div id="shortcutContainer" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+        <input type="checkbox" id="shortcutToggle" checked>
+        <label for="shortcutToggle">Use Shortcuts (;;d → \partial)</label>
+    </div>
     <canvas id="latexCanvas"></canvas>
     <script src="./popup.js"></script>
 </body>

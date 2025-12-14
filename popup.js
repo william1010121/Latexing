@@ -7,20 +7,28 @@ function initializeSnippetHandler() {
     snippetHandler = new LaTeXSnippetHandler();
 }
 
-function saveData(input, latexType) {
-    chrome.storage.sync.set({input: input, latexType: latexType}, function() {
+function saveData(input, latexType, shortcutEnabled = null) {
+    const data = {input: input, latexType: latexType};
+    if (shortcutEnabled !== null) {
+        data.shortcutEnabled = shortcutEnabled;
+    }
+    chrome.storage.sync.set(data, function() {
         // data saved
     });
 }
 
 function loadData() {
-    chrome.storage.sync.get(['input', 'latexType'], function(data) {
+    chrome.storage.sync.get(['input', 'latexType', 'shortcutEnabled'], function(data) {
         if(data.input) {
             document.getElementById("inputBox").value = data.input;
         }
         if(data.latexType) {
             document.getElementById("latexType").value = data.latexType;
         }
+        // Load shortcut toggle state, default to true
+        const shortcutEnabled = data.shortcutEnabled !== undefined ? data.shortcutEnabled : true;
+        document.getElementById("shortcutToggle").checked = shortcutEnabled;
+        snippetHandler.setEnabled(shortcutEnabled);
         updateOutput();
     });
 }
@@ -33,6 +41,7 @@ document.getElementById('inputBox').addEventListener('input', handleInputChange)
 document.getElementById('inputBox').addEventListener('keyup', handleKeyUp);
 document.getElementById('inputBox').addEventListener('keydown', handleKeyDown);
 document.getElementById('latexType').addEventListener('change', updateOutput);
+document.getElementById('shortcutToggle').addEventListener('change', handleShortcutToggle);
 
 function handleInputChange() {
     const inputBox = document.getElementById('inputBox');
@@ -40,8 +49,14 @@ function handleInputChange() {
     updateOutput();
 }
 
+function handleShortcutToggle(event) {
+    const enabled = event.target.checked;
+    snippetHandler.setEnabled(enabled);
+    saveData(document.getElementById('inputBox').value, document.getElementById('latexType').value, enabled);
+}
+
 function handleKeyDown(event) {
-    if (!snippetHandler) return;
+    if (!snippetHandler || !snippetHandler.enabled) return;
     
     const inputBox = document.getElementById('inputBox');
     
@@ -87,7 +102,7 @@ function handleKeyDown(event) {
 }
 
 function handleKeyUp(event) {
-    if (!snippetHandler) return;
+    if (!snippetHandler || !snippetHandler.enabled) return;
     
     const inputBox = document.getElementById('inputBox');
     const text = inputBox.value;

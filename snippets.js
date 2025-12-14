@@ -10,6 +10,7 @@ class LaTeXSnippetHandler {
         this.placeholders = [];
         this.currentPlaceholder = 0;
         this.lastSelectedPlaceholder = null;
+        this.enabled = true;  // Default to enabled
         if (!skipAutoLoad) {
             this.loadSnippets();
         }
@@ -33,13 +34,24 @@ class LaTeXSnippetHandler {
     }
 
     /**
+     * Enable or disable snippet expansion
+     * @param {boolean} enabled - Whether to enable snippets
+     */
+    setEnabled(enabled) {
+        this.enabled = enabled;
+        if (!enabled) {
+            this.clearActiveSnippet();
+        }
+    }
+
+    /**
      * Process text input and expand snippets
      * @param {string} text - The current text content
      * @param {number} cursorPosition - Current cursor position
      * @returns {object} - {text: newText, cursorPosition: newPosition, changed: boolean}
      */
     processText(text, cursorPosition) {
-        if (!this.snippets) {
+        if (!this.snippets || !this.enabled) {
             return { text, cursorPosition, changed: false };
         }
 
@@ -188,7 +200,7 @@ class LaTeXSnippetHandler {
         
         // Organize placeholders by level and position
         this.placeholders = this.organizePlaceholders(finalPlaceholders);
-        this.currentPlaceholder = 0; // First placeholder is already selected
+        this.currentPlaceholder = -1; // Will be incremented to 0 on first Tab to select first placeholder
         
         // Position cursor at first placeholder
         const firstPlaceholder = this.getFirstPlaceholder();
@@ -358,17 +370,22 @@ class LaTeXSnippetHandler {
         }
 
         // Handle ab/ -> \frac{ab}{$1} $0
-        const fractionMatch = beforeCursor.match(/([a-zA-Z0-9_^{}\\]+)\/$/)
-        if (fractionMatch) {
-            const content = fractionMatch[1];
-            const beforeContent = beforeCursor.slice(0, -content.length - 1);
-            const newBeforeCursor = beforeContent + `\\frac{${content}}{$1} $0`;
-            return {
-                beforeCursor: newBeforeCursor,
-                afterCursor,
-                cursorOffset: 0,
-                changed: true
-            };
+        // Only trigger this when NOT in active snippet mode to avoid conflicts
+        // Regex matches letters, numbers, underscore, caret, and backslash (for LaTeX commands)
+        // Excludes {} to avoid matching single brackets
+        if (!this.activeSnippet) {
+            const fractionMatch = beforeCursor.match(/([a-zA-Z0-9_^\\]+)\/$/)
+            if (fractionMatch) {
+                const content = fractionMatch[1];
+                const beforeContent = beforeCursor.slice(0, -content.length - 1);
+                const newBeforeCursor = beforeContent + `\\frac{${content}}{$1} $0`;
+                return {
+                    beforeCursor: newBeforeCursor,
+                    afterCursor,
+                    cursorOffset: 0,
+                    changed: true
+                };
+            }
         }
 
         return { beforeCursor, afterCursor, cursorOffset: 0, changed: false };
@@ -414,11 +431,11 @@ class LaTeXSnippetHandler {
      */
     getNavigationOrder() {
         const orderedPlaceholders = this.placeholders.filter(p => p.number !== 0);
-        
-        // Sort by level first, then handle position within each level
+
+        // Sort by level first (higher levels first for nested structures), then handle position within each level
         orderedPlaceholders.sort((a, b) => {
             if (a.level !== b.level) {
-                return a.level - b.level;
+                return b.level - a.level; // Higher level first (nested placeholders before outer ones)
             }
             // Within same level, sort by position (0 comes last)
             if (a.position !== b.position) {
@@ -428,7 +445,7 @@ class LaTeXSnippetHandler {
             }
             return a.number - b.number;
         });
-        
+
         return orderedPlaceholders;
     }
 
